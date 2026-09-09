@@ -328,6 +328,23 @@ func (ast *Assistant) executeSandboxV2Stream(
 		}
 	}
 
+	// Build context vars for user message injection (independent of prompt parsing scope)
+	contextVars := make(map[string]string)
+	if ctx.Locale != "" {
+		contextVars["LOCALE"] = ctx.Locale
+	}
+	if wsID, err := ctx.GetWorkspaceID(); err == nil && wsID != "" {
+		contextVars["WORKSPACE_ID"] = wsID
+	}
+	if ast.ID != "" {
+		contextVars["ASSISTANT_ID"] = ast.ID
+	}
+
+	var clientID string
+	if ctx.Authorized != nil {
+		clientID = ctx.Authorized.ClientID
+	}
+
 	streamReq := &sandboxTypes.StreamRequest{
 		Computer:     p.Computer,
 		Config:       cfg,
@@ -341,6 +358,8 @@ func (ast *Assistant) executeSandboxV2Stream(
 		Logger:       ctx.Logger,
 		UserExplicit: p.Options != nil && p.Options.Connector != "",
 		Locale:       ctx.Locale,
+		ContextVars:  contextVars,
+		ClientID:     clientID,
 	}
 
 	execReq := &sandboxv2.ExecuteRequest{

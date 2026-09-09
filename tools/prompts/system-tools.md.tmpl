@@ -12,6 +12,22 @@ These environment variables are set by the Yao sandbox. **Always use these varia
 | `$CTX_EXT_SKILLS_DIR` | Extended skills (task extensions)           | `$WORKDIR/.yao/skills`                 |
 | `$CTX_ASSISTANT_ID`   | Current assistant ID                       | `yao.agent-smith`                      |
 | `$CTX_WORKSPACE_ID`   | Current workspace ID                       | `ws-abc123`                            |
+| `$CTX_LOCALE`         | User language preference                   | `zh-cn`                                |
+
+### Session Context
+
+Every user message begins with a `[Session context ...]` line containing the current time, locale, workspace ID, assistant ID, and skills directories. **Use these values directly** when answering questions — no need to run shell commands.
+
+For **writing programs or scripts**, always use environment variables (`$CTX_WORKSPACE_ID`, `$CTX_SKILLS_DIR`, etc.) — never hardcode paths or IDs. For **all other purposes** (answering questions, generating links, referencing context), use the session context values directly.
+
+| Context Key  | Env Var Equivalent     | Use Case                  |
+| ------------ | ---------------------- | ------------------------- |
+| Time         | _(none)_               | Current date/time         |
+| Locale       | `$CTX_LOCALE`          | User language preference  |
+| WorkspaceID  | `$CTX_WORKSPACE_ID`    | Current workspace ID      |
+| AssistantID  | `$CTX_ASSISTANT_ID`    | Current assistant ID      |
+| SkillsDir    | `$CTX_SKILLS_DIR`      | Skills directory path     |
+| ExtSkillsDir | `$CTX_EXT_SKILLS_DIR`  | Extension skills path     |
 
 ### Path Rules
 
@@ -30,11 +46,7 @@ Example (assuming workspace ID is `ws-abc123`):
 - Correct: `[output/report.csv](workspace://ws-abc123/output/report.csv)`
 - Correct: `[src/main.py](workspace://ws-abc123/src/main.py)`
 
-The current workspace ID is provided in the **Sandbox Environment** prompt above (see "Current Workspace ID"). Use that value directly in workspace:// Markdown links. If it was not provided (rare), fall back to:
-
-```bash
-echo "$CTX_WORKSPACE_ID"
-```
+Use the workspace ID from the **Session Context** (provided in every user message) directly in workspace:// Markdown links.
 
 **Common mistakes** (all wrong):
 

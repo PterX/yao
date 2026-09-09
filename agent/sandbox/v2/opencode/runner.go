@@ -183,9 +183,6 @@ func (r *Runner) Stream(ctx context.Context, req *types.StreamRequest, handler m
 			if svcPrompt := buildServicePrompt(req.Config); svcPrompt != "" {
 				envPrompt += "\n\n" + svcPrompt
 			}
-			if localePrompt := buildLocalePrompt(req.Locale); localePrompt != "" {
-				envPrompt += "\n\n" + localePrompt
-			}
 			fullPrompt := req.SystemPrompt + "\n\n" + envPrompt
 			ws.MkdirAll(prefix, 0755)
 			ws.WriteFile(promptPath, []byte(fullPrompt), 0644)

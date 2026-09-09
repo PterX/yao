@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -141,18 +143,42 @@ func (r *Runner) buildCommand(req *types.StreamRequest, p platform, msgParts *sh
 		sessionID = uuid.New().String()
 	}
 
+	// Pre-write .anonymous-user-id so all workspaces share the same DSH user_id.
+	// DSH reads this file during initialize; writing before process launch is required.
+	if req.ClientID != "" {
+		dshHome := filepath.Join(workDir, ".dsh")
+		os.MkdirAll(dshHome, 0755)
+		idFile := filepath.Join(dshHome, ".anonymous-user-id")
+		instanceUUID := uuid.NewSHA1(uuid.NameSpaceDNS, []byte(req.ClientID)).String()
+		os.WriteFile(idFile, []byte(instanceUUID+"\n"), 0644)
+	}
+
 	// Build JSON-RPC input
 	initMsg, err := buildInitializeMsg(workDir, model, maxTokens)
 	if err != nil {
 		return command{}, err
 	}
 
+	// Enrich context vars with runner-local paths before building prefix
+	if req.ContextVars == nil {
+		req.ContextVars = make(map[string]string)
+	}
+	skillsPrefix := ".dsh"
+	if req.AssistantID != "" {
+		skillsPrefix = ".yao/assistants/" + req.AssistantID
+	}
+	req.ContextVars["SKILLS_DIR"] = filepath.Join(workDir, skillsPrefix, "skills")
+	req.ContextVars["EXT_SKILLS_DIR"] = filepath.Join(workDir, ".yao", "skills")
+
+	ctxPrefix := shared.BuildContextPrefix(req.ContextVars)
 	var promptMsg string
 	if msgParts != nil && len(msgParts.ImageBlocks) > 0 {
+		msgParts.TextParts = append([]string{ctxPrefix}, msgParts.TextParts...)
 		blocks := buildContentBlocks(msgParts)
 		promptMsg, err = buildSessionPromptMsgFromBlocks(sessionID, blocks)
 	} else {
 		lastMsg := extractLastUserMessage(req.Messages)
+		lastMsg = ctxPrefix + "\n\n" + lastMsg
 		promptMsg, err = buildSessionPromptMsg(sessionID, lastMsg)
 	}
 	if err != nil {
@@ -277,26 +303,11 @@ func buildSystemPrompt(req *types.StreamRequest, workDir string) string {
 
 	parts = append(parts, buildSandboxEnvPrompt(workDir))
 
-	if req.Locale != "" {
-		if lp := buildLocalePrompt(req.Locale); lp != "" {
-			parts = append(parts, lp)
-		}
-	}
-
 	return strings.Join(parts, "\n\n")
 }
 
 func buildSandboxEnvPrompt(workDir string) string {
 	return fmt.Sprintf("Working directory: %s", workDir)
-}
-
-func buildLocalePrompt(locale string) string {
-	switch {
-	case strings.HasPrefix(locale, "zh"):
-		return "Always respond in Chinese (Simplified)."
-	default:
-		return ""
-	}
 }
 
 func extractLastUserMessage(messages []agentContext.Message) string {
@@ -376,15 +387,18 @@ func extractThinkingConfig(c connector.Connector) (string, string) {
 }
 
 // normalizeDSHReasoningEffort maps Yao reasoning_effort values to the
-// subset DSH llm-deepseek accepts: "off", "high", or "max".
+// DSH llm-deepseek vocabulary: "off", "low", "high", "max".
+// Connector values outside that set are mapped to the nearest equivalent.
 func normalizeDSHReasoningEffort(v string) string {
 	switch v {
+	case "off", "none":
+		return "off"
+	case "low", "medium":
+		return "low"
+	case "high":
+		return "high"
 	case "max":
 		return "max"
-	case "off":
-		return "off"
-	case "high", "medium", "low":
-		return "high"
 	default:
 		return ""
 	}
