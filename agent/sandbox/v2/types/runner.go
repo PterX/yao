@@ -62,4 +62,6 @@ type StreamRequest struct {
 	UserExplicit        bool                        // true when the user explicitly selected the primary connector
 	Locale              string                      // user locale (e.g. "zh-cn", "en-us") for i18n in MCP tools
 	PrepareLoadingMsgID string                      // prepare-phase loading message ID for DSH status updates
+	ContextVars         map[string]string           // LLM-relevant context variables for user message injection
+	ClientID            string                      // JWT client_id for stable DSH anonymous user identity
 }

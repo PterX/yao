@@ -93,7 +93,8 @@ func TestBuildSystemPrompt_WithLocale(t *testing.T) {
 	if got == "" {
 		t.Fatal("empty prompt")
 	}
-	if got != "You are an agent.\n\nWorking directory: /workspace\n\nAlways respond in Chinese (Simplified)." {
+	// Locale no longer injected into system prompt (moved to user message prefix for cache optimization).
+	if got != "You are an agent.\n\nWorking directory: /workspace" {
 		t.Errorf("prompt = %q", got)
 	}
 }

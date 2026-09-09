@@ -82,11 +82,30 @@ func (r *Runner) buildCommand(ctx context.Context, req *types.StreamRequest, p p
 	env := buildEnv(req, p)
 	args := buildArgs(req, r, p, isContinuation, assistantID, chatID)
 
+	// Enrich context vars with runner-local paths before building prefix
+	if req.ContextVars == nil {
+		req.ContextVars = make(map[string]string)
+	}
+	req.ContextVars["SKILLS_DIR"] = env["CTX_SKILLS_DIR"]
+	req.ContextVars["EXT_SKILLS_DIR"] = env["CTX_EXT_SKILLS_DIR"]
+
+	ctxPrefix := shared.BuildContextPrefix(req.ContextVars)
 	var inputJSONL string
 	if msgParts != nil && len(msgParts.ImageBlocks) > 0 {
+		msgParts.TextParts = append([]string{ctxPrefix}, msgParts.TextParts...)
 		inputJSONL = buildVisionMessageJSONL(msgParts)
 	} else {
-		inputJSONL = buildLastUserMessageJSONL(req.Messages)
+		msgs := make([]agentContext.Message, len(req.Messages))
+		copy(msgs, req.Messages)
+		for i := len(msgs) - 1; i >= 0; i-- {
+			if msgs[i].Role == "user" {
+				if s, ok := msgs[i].Content.(string); ok {
+					msgs[i].Content = ctxPrefix + "\n\n" + s
+				}
+				break
+			}
+		}
+		inputJSONL = buildLastUserMessageJSONL(msgs)
 	}
 
 	var workspaceID string
@@ -101,9 +120,6 @@ func (r *Runner) buildCommand(ctx context.Context, req *types.StreamRequest, p p
 	}
 	if capPrompt := buildModelCapabilityPrompt(req); capPrompt != "" {
 		envPrompt += "\n\n" + capPrompt
-	}
-	if localePrompt := buildLocalePrompt(req.Locale); localePrompt != "" {
-		envPrompt += "\n\n" + localePrompt
 	}
 	if !isContinuation && req.SystemPrompt != "" {
 		systemPrompt = req.SystemPrompt + "\n\n" + envPrompt
@@ -426,32 +442,6 @@ func buildServicePrompt(cfg *types.SandboxConfig) string {
 		}
 	}
 	return sb.String()
-}
-
-var localeNames = map[string]string{
-	"zh-CN": "Chinese (Simplified)",
-	"zh-TW": "Chinese (Traditional)",
-	"en-US": "English",
-	"en-GB": "English",
-	"ja-JP": "Japanese",
-	"ko-KR": "Korean",
-	"fr-FR": "French",
-	"de-DE": "German",
-	"es-ES": "Spanish",
-	"pt-BR": "Portuguese (Brazil)",
-	"ru-RU": "Russian",
-	"ar-SA": "Arabic",
-}
-
-func buildLocalePrompt(locale string) string {
-	if locale == "" {
-		return ""
-	}
-	name := localeNames[locale]
-	if name == "" {
-		name = locale
-	}
-	return fmt.Sprintf("IMPORTANT: Always respond in %s.", name)
 }
 
 func buildModelCapabilityPrompt(req *types.StreamRequest) string {

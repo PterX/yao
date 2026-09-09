@@ -11,6 +11,7 @@ import (
 	goullm "github.com/yaoapp/gou/llm"
 	"github.com/yaoapp/gou/store"
 	agentContext "github.com/yaoapp/yao/agent/context"
+	"github.com/yaoapp/yao/agent/sandbox/v2/shared"
 	"github.com/yaoapp/yao/agent/sandbox/v2/types"
 	infra "github.com/yaoapp/yao/sandbox/v2"
 )
@@ -66,6 +67,16 @@ func (r *Runner) buildCommand(req *types.StreamRequest, p platform, attachmentPa
 	args := buildArgs(req, r, isContinuation, chatID)
 
 	stdinMsg := buildStdinMessage(req.Messages, attachmentPaths)
+
+	// Enrich context vars with runner-local paths before building prefix
+	if req.ContextVars == nil {
+		req.ContextVars = make(map[string]string)
+	}
+	req.ContextVars["SKILLS_DIR"] = env["CTX_SKILLS_DIR"]
+	req.ContextVars["EXT_SKILLS_DIR"] = env["CTX_EXT_SKILLS_DIR"]
+
+	ctxPrefix := shared.BuildContextPrefix(req.ContextVars)
+	stdinMsg = ctxPrefix + "\n\n" + stdinMsg
 
 	script := shellQuoteForPlatform(p, "opencode", args...)
 
@@ -290,32 +301,6 @@ func buildSandboxEnvPrompt(p platform, workDir string, workspaceID string) strin
 - **Working Directory**: %[1]s
 - **File Access**: You have full read/write access to %[1]s
 %[4]s`, workDir, osName, shell, wsNote)
-}
-
-var localeNames = map[string]string{
-	"zh-CN": "Chinese (Simplified)",
-	"zh-TW": "Chinese (Traditional)",
-	"en-US": "English",
-	"en-GB": "English",
-	"ja-JP": "Japanese",
-	"ko-KR": "Korean",
-	"fr-FR": "French",
-	"de-DE": "German",
-	"es-ES": "Spanish",
-	"pt-BR": "Portuguese (Brazil)",
-	"ru-RU": "Russian",
-	"ar-SA": "Arabic",
-}
-
-func buildLocalePrompt(locale string) string {
-	if locale == "" {
-		return ""
-	}
-	name := localeNames[locale]
-	if name == "" {
-		name = locale
-	}
-	return fmt.Sprintf("IMPORTANT: Always respond in %s.", name)
 }
 
 func buildServicePrompt(cfg *types.SandboxConfig) string {
