@@ -5,12 +5,48 @@
   api_url: https://opencode.ai/zen/go
   require_key: true
   default_models:
-    - id: grok-4.5
-      name: Grok 4.5
-      max_input_tokens: 500000
-      max_output_tokens: 32000
+    - id: deepseek-flash
+      name: DeepSeek V4.1 Flash
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
       capabilities: [vision, tool_calls, streaming, json]
+      options:
+        thinking:
+          type: disabled
+      enabled: true
+    - id: deepseek-flash-thinking
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking High
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "high"
       enabled: false
+    - id: deepseek-flash-thinking-max
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking Max
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "max"
+      enabled: false
+    - id: deepseek-flash-thinking-low
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking Low
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "low"
+      enabled: true
     - id: glm-5.2
       name: GLM-5.2
       max_input_tokens: 202752
@@ -218,6 +254,30 @@
       max_output_tokens: 262144
       capabilities: [tool_calls, streaming, json]
       enabled: false
+    - id: glm-5.3-flash
+      name: GLM-5.3-Flash
+      max_input_tokens: 1048576
+      max_output_tokens: 131072
+      capabilities: [vision, tool_calls, streaming, json]
+      enabled: false
+    - id: glm-5.3
+      name: GLM-5.3
+      max_input_tokens: 1048576
+      max_output_tokens: 131072
+      capabilities: [tool_calls, streaming, json]
+      enabled: false
+    - id: hy4-preview
+      name: Hy4 Preview
+      max_input_tokens: 960000
+      max_output_tokens: 64000
+      capabilities: [tool_calls, streaming, json]
+      enabled: false
+    - id: longcat-2.0
+      name: LongCat 2.0
+      max_input_tokens: 1048576
+      max_output_tokens: 131072
+      capabilities: [tool_calls, streaming, json]
+      enabled: false
 
 # ─── OpenCode Go (Anthropic) ──────────────────────────
 - key: opencode_go_anthropic
@@ -242,6 +302,12 @@
       name: MiniMax M2.5
       max_input_tokens: 196608
       max_output_tokens: 131072
+      capabilities: [tool_calls, streaming, json]
+      enabled: false
+    - id: qwen3.8-flash
+      name: Qwen3.8 Flash
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
       capabilities: [tool_calls, streaming, json]
       enabled: false
     - id: qwen3.7-max
@@ -1433,6 +1499,18 @@
       capabilities: [audio]
       enabled: false
     # --- Image Generation ---
+    - id: gpt-image-2.5-flare
+      name: GPT Image 2.5 Flare
+      capabilities: [image_generation, image_editing]
+      options:
+        image_editing: multipart
+      enabled: false
+    - id: gpt-image-2.5-sunburst
+      name: GPT Image 2.5 Sunburst
+      capabilities: [image_generation, image_editing]
+      options:
+        image_editing: multipart
+      enabled: false
     - id: gpt-image-2
       name: GPT Image 2
       capabilities: [image_generation, image_editing]
@@ -1465,6 +1543,48 @@
   api_url: https://api.deepseek.com/anthropic
   require_key: true
   default_models:
+    - id: deepseek-flash
+      name: DeepSeek V4.1 Flash
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json]
+      options:
+        thinking:
+          type: disabled
+      enabled: true
+    - id: deepseek-flash-thinking
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking High
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "high"
+      enabled: true
+    - id: deepseek-flash-thinking-max
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking Max
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "max"
+      enabled: false
+    - id: deepseek-flash-thinking-low
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking Low
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "low"
+      enabled: false
     - id: deepseek-v4-pro
       name: DeepSeek V4 Pro
       max_input_tokens: 1048576
@@ -1599,6 +1719,48 @@
   api_url: https://api.deepseek.com
   require_key: true
   default_models:
+    - id: deepseek-flash
+      name: DeepSeek V4.1 Flash
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json]
+      options:
+        thinking:
+          type: disabled
+      enabled: true
+    - id: deepseek-flash-thinking
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking High
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "high"
+      enabled: true
+    - id: deepseek-flash-thinking-max
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking Max
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "max"
+      enabled: false
+    - id: deepseek-flash-thinking-low
+      model: deepseek-flash
+      name: DeepSeek V4.1 Flash Thinking Low
+      max_input_tokens: 1048576
+      max_output_tokens: 384000
+      capabilities: [vision, tool_calls, streaming, json, reasoning]
+      options:
+        thinking:
+          type: enabled
+        reasoning_effort: "low"
+      enabled: false
     - id: deepseek-v4-pro
       name: DeepSeek V4 Pro
       max_input_tokens: 1048576
