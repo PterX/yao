@@ -3,11 +3,13 @@ package openai
 import (
 	gocontext "context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/yaoapp/gou/connector"
+	"github.com/yaoapp/gou/dns"
 	"github.com/yaoapp/gou/http"
 	goullm "github.com/yaoapp/gou/llm"
 	"github.com/yaoapp/kun/log"
@@ -235,6 +237,14 @@ func (p *Provider) Stream(ctx *context.Context, messages []context.Message, opti
 		}
 
 		if attempt > 0 {
+			// Clear stale DNS cache so the retry resolves a fresh IP.
+			if host, hostErr := p.GetHost(); hostErr == nil {
+				if u, parseErr := url.Parse(host); parseErr == nil && u.Hostname() != "" {
+					dns.ClearHost(u.Hostname())
+				}
+			}
+			http.CloseAllTransports()
+
 			// Exponential backoff: 1s, 2s, 4s
 			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
 
@@ -840,6 +850,14 @@ func (p *Provider) Post(ctx *context.Context, messages []context.Message, option
 		}
 
 		if attempt > 0 {
+			// Clear stale DNS cache so the retry resolves a fresh IP.
+			if host, hostErr := p.GetHost(); hostErr == nil {
+				if u, parseErr := url.Parse(host); parseErr == nil && u.Hostname() != "" {
+					dns.ClearHost(u.Hostname())
+				}
+			}
+			http.CloseAllTransports()
+
 			// Exponential backoff
 			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
 			if trace != nil {

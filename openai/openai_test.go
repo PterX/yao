@@ -254,7 +254,7 @@ func TestImagesGenerations(t *testing.T) {
 	}
 	assert.NotNil(t, data.(map[string]interface{})["created"])
 
-	data, err = openai.ImagesGenerations("A cat", map[string]interface{}{"size": "256x256", "n": 1})
+	data, err = openai.ImagesGenerations("A cat", map[string]interface{}{"size": "1024x1024", "n": 1})
 	if err != nil {
 		t.Fatal(err.Message)
 	}
@@ -277,6 +277,7 @@ func TestImageVariations(t *testing.T) {
 	test.Prepare(t, config.Conf)
 	defer test.Clean()
 
+	t.Skip("/images/variations endpoint removed (dall-e-2 only, deprecated by OpenAI)")
 	openai := prepare(t, "gpt-3_5-turbo")
 	data, err := openai.ImagesVariations(image(t), map[string]interface{}{})
 	if err != nil {

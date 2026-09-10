@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/yaoapp/gou/connector"
+	"github.com/yaoapp/gou/dns"
 	"github.com/yaoapp/gou/http"
 	"github.com/yaoapp/kun/exception"
 	"github.com/yaoapp/yao/share"
@@ -268,26 +270,24 @@ func (openai OpenAI) AudioTranscriptionsFile(filePath string, option map[string]
 		option["model"] = openai.model
 	}
 
-	req := http.New(url)
-	if openai.authMode == "api-key" {
-		req.WithHeader(map[string][]string{
-			"Content-Type": {"multipart/form-data"},
-			"api-key":      {openai.key},
-		})
-	} else {
-		req.WithHeader(map[string][]string{
-			"Content-Type":  {"multipart/form-data"},
-			"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
-		})
+	sendFn := func() *http.Response {
+		r := http.New(url)
+		if openai.authMode == "api-key" {
+			r.WithHeader(map[string][]string{
+				"Content-Type": {"multipart/form-data"},
+				"api-key":      {openai.key},
+			})
+		} else {
+			r.WithHeader(map[string][]string{
+				"Content-Type":  {"multipart/form-data"},
+				"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
+			})
+		}
+		r.AddFile("file", filePath)
+		return r.Send("POST", option)
 	}
 
-	req.AddFile("file", filePath)
-
-	res := req.Send("POST", option)
-	if err := openai.isError(res); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
+	return openai.checkAndRetry(sendFn(), sendFn)
 }
 
 // ImagesGenerations Creates an image given a prompt.
@@ -297,8 +297,8 @@ func (openai OpenAI) ImagesGenerations(prompt string, option map[string]interfac
 		option = map[string]interface{}{}
 	}
 
-	if option["response_format"] == nil {
-		option["response_format"] = "b64_json"
+	if option["model"] == nil {
+		option["model"] = "gpt-image-2"
 	}
 
 	option["prompt"] = prompt
@@ -326,10 +326,14 @@ func (openai OpenAI) ImagesEdits(imageBase64 string, prompt string, option map[s
 			return nil, exception.New("Base64 error :%s", 400, err.Error())
 		}
 		files["mask"] = mask
+		delete(option, "mask")
 	}
 
-	if option["response_format"] == nil {
-		option["response_format"] = "b64_json"
+	if option["model"] == nil {
+		option["model"] = "gpt-image-2"
+	}
+	if option["filename"] == nil {
+		option["filename"] = "image.png"
 	}
 
 	option["prompt"] = prompt
@@ -350,8 +354,11 @@ func (openai OpenAI) ImagesVariations(imageBase64 string, option map[string]inte
 		option = map[string]interface{}{}
 	}
 
-	if option["response_format"] == nil {
-		option["response_format"] = "b64_json"
+	if option["model"] == nil {
+		option["model"] = "dall-e-2"
+	}
+	if option["filename"] == nil {
+		option["filename"] = "image.png"
 	}
 
 	return openai.postFileWithoutModel(openai.baseURL+"/images/variations", files, option)
@@ -413,42 +420,41 @@ func (openai OpenAI) post(path string, payload map[string]interface{}) (interfac
 	url := fmt.Sprintf("%s%s", openai.host, path)
 	payload["model"] = openai.model
 
-	req := http.New(url)
-	if openai.authMode == "api-key" {
-		req.WithHeader(map[string][]string{
-			"Content-Type": {"application/json; charset=utf-8"},
-			"api-key":      {openai.key},
-		})
-	} else {
-		req.WithHeader(map[string][]string{
-			"Content-Type":  {"application/json; charset=utf-8"},
-			"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
-		})
+	sendFn := func() *http.Response {
+		r := http.New(url)
+		if openai.authMode == "api-key" {
+			r.WithHeader(map[string][]string{
+				"Content-Type": {"application/json; charset=utf-8"},
+				"api-key":      {openai.key},
+			})
+		} else {
+			r.WithHeader(map[string][]string{
+				"Content-Type":  {"application/json; charset=utf-8"},
+				"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
+			})
+		}
+		return r.Post(payload)
 	}
 
-	res := req.Post(payload)
-	if err := openai.isError(res); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
+	return openai.checkAndRetry(sendFn(), sendFn)
 }
 
 // post post request without model
 func (openai OpenAI) postWithoutModel(path string, payload map[string]interface{}) (interface{}, *exception.Exception) {
 
 	url := fmt.Sprintf("%s%s", openai.host, path)
-	req := http.New(url)
-	if openai.authMode == "api-key" {
-		req.WithHeader(map[string][]string{"api-key": {openai.key}})
-	} else {
-		req.WithHeader(map[string][]string{"Authorization": {fmt.Sprintf("Bearer %s", openai.key)}})
+
+	sendFn := func() *http.Response {
+		r := http.New(url)
+		if openai.authMode == "api-key" {
+			r.WithHeader(map[string][]string{"api-key": {openai.key}})
+		} else {
+			r.WithHeader(map[string][]string{"Authorization": {fmt.Sprintf("Bearer %s", openai.key)}})
+		}
+		return r.Post(payload)
 	}
 
-	res := req.Post(payload)
-	if err := openai.isError(res); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
+	return openai.checkAndRetry(sendFn(), sendFn)
 }
 
 // post post request with file
@@ -459,88 +465,108 @@ func (openai OpenAI) postFile(path string, files map[string][]byte, option map[s
 		option["model"] = openai.model
 	}
 
-	req := http.New(url)
-
-	if openai.authMode == "api-key" {
-		req.WithHeader(map[string][]string{
-			"Content-Type": {"multipart/form-data"},
-			"api-key":      {openai.key},
-		})
-	} else {
-		req.WithHeader(map[string][]string{
-			"Content-Type":  {"multipart/form-data"},
-			"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
-		})
+	// Extract filename before first send (delete mutates option).
+	filename := ""
+	if fn, ok := option["filename"].(string); ok && fn != "" {
+		filename = fn
+		delete(option, "filename")
 	}
 
-	for name, data := range files {
-		filename := fmt.Sprintf("%s.mp3", name)
-		if fn, ok := option["filename"].(string); ok && fn != "" {
-			filename = fn
-			delete(option, "filename") // don't send as form field to API
+	sendFn := func() *http.Response {
+		r := http.New(url)
+		if openai.authMode == "api-key" {
+			r.WithHeader(map[string][]string{
+				"Content-Type": {"multipart/form-data"},
+				"api-key":      {openai.key},
+			})
+		} else {
+			r.WithHeader(map[string][]string{
+				"Content-Type":  {"multipart/form-data"},
+				"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
+			})
 		}
-		req.AddFileBytes(name, filename, data)
+		for name, data := range files {
+			fn := fmt.Sprintf("%s.mp3", name)
+			if filename != "" {
+				fn = filename
+			}
+			r.AddFileBytes(name, fn, data)
+		}
+		return r.Send("POST", option)
 	}
 
-	res := req.Send("POST", option)
-	if err := openai.isError(res); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
+	return openai.checkAndRetry(sendFn(), sendFn)
 }
 
 // post post request with file without model
 func (openai OpenAI) postFileWithoutModel(path string, files map[string][]byte, option map[string]interface{}) (interface{}, *exception.Exception) {
 
 	url := fmt.Sprintf("%s%s", openai.host, path)
-	key := fmt.Sprintf("Bearer %s", openai.key)
 
-	req := http.New(url).WithHeader(map[string][]string{"Authorization": {key}})
-	if openai.authMode == "api-key" {
-		req.WithHeader(map[string][]string{"api-key": {openai.key}})
-	} else {
-		req.WithHeader(map[string][]string{"Authorization": {fmt.Sprintf("Bearer %s", openai.key)}})
+	// Extract filename before first send (delete mutates option).
+	filename := ""
+	if fn, ok := option["filename"].(string); ok && fn != "" {
+		filename = fn
+		delete(option, "filename")
 	}
 
-	for name, data := range files {
-		filename := fmt.Sprintf("%s.mp3", name)
-		if fn, ok := option["filename"].(string); ok && fn != "" {
-			filename = fn
-			delete(option, "filename") // don't send as form field to API
+	sendFn := func() *http.Response {
+		r := http.New(url)
+		if openai.authMode == "api-key" {
+			r.WithHeader(map[string][]string{"api-key": {openai.key}})
+		} else {
+			r.WithHeader(map[string][]string{"Authorization": {fmt.Sprintf("Bearer %s", openai.key)}})
 		}
-		req.AddFileBytes(name, filename, data)
+		for name, data := range files {
+			fn := fmt.Sprintf("%s.mp3", name)
+			if filename != "" {
+				fn = filename
+			}
+			r.AddFileBytes(name, fn, data)
+		}
+		return r.Send("POST", option)
 	}
 
-	res := req.Send("POST", option)
-	if err := openai.isError(res); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
+	return openai.checkAndRetry(sendFn(), sendFn)
 }
 
-// stream post request
+// stream post request. If the connection fails before any data is delivered
+// to cb, clears the DNS cache and retries once.
 func (openai OpenAI) stream(ctx context.Context, path string, payload map[string]interface{}, cb func(data []byte) int) *exception.Exception {
 	url := fmt.Sprintf("%s%s", openai.host, path)
 
-	// If the model is not set, set the model to the default model
 	if _, ok := payload["model"].(string); !ok {
 		payload["model"] = openai.model
 	}
 
-	req := http.New(url)
-	if openai.authMode == "api-key" {
-		req.WithHeader(map[string][]string{
-			"Content-Type": {"application/json; charset=utf-8"},
-			"api-key":      {openai.key},
-		})
-	} else {
-		req.WithHeader(map[string][]string{
-			"Content-Type":  {"application/json; charset=utf-8"},
-			"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
-		})
+	doStream := func(handler func(data []byte) int) error {
+		r := http.New(url)
+		if openai.authMode == "api-key" {
+			r.WithHeader(map[string][]string{
+				"Content-Type": {"application/json; charset=utf-8"},
+				"api-key":      {openai.key},
+			})
+		} else {
+			r.WithHeader(map[string][]string{
+				"Content-Type":  {"application/json; charset=utf-8"},
+				"Authorization": {fmt.Sprintf("Bearer %s", openai.key)},
+			})
+		}
+		return r.Stream(ctx, "POST", payload, handler)
 	}
 
-	err := req.Stream(ctx, "POST", payload, cb)
+	called := false
+	wrappedCb := func(data []byte) int {
+		called = true
+		return cb(data)
+	}
+
+	err := doStream(wrappedCb)
+	if err != nil && !called {
+		dns.ClearHost(extractHost(openai.host))
+		http.CloseAllTransports()
+		err = doStream(cb)
+	}
 	if err != nil {
 		return exception.New(err.Error(), 500)
 	}
@@ -551,6 +577,14 @@ func (openai OpenAI) isError(res *http.Response) *exception.Exception {
 
 	if res.Status != 200 {
 		message := "OpenAI Error"
+
+		// Transport-layer errors (DNS timeout, connection refused, etc.)
+		// are stored in res.Message with Status=0 and Data=nil.
+		if res.Message != "" {
+			message = res.Message
+		}
+
+		// API-level errors: res.Data carries the response body.
 		if v, ok := res.Data.(string); ok {
 			message = v
 		}
@@ -570,4 +604,31 @@ func (openai OpenAI) isError(res *http.Response) *exception.Exception {
 	}
 
 	return nil
+}
+
+// checkAndRetry checks the response for errors. On a transport-level failure
+// (Status==0, typically DNS timeout or connection refused), it clears the DNS
+// cache for the API host, closes stale transport connections, and retries once.
+func (openai OpenAI) checkAndRetry(res *http.Response, retryFn func() *http.Response) (interface{}, *exception.Exception) {
+	if err := openai.isError(res); err != nil {
+		if res.Status == 0 {
+			dns.ClearHost(extractHost(openai.host))
+			http.CloseAllTransports()
+			res = retryFn()
+			if retryErr := openai.isError(res); retryErr != nil {
+				return nil, retryErr
+			}
+			return res.Data, nil
+		}
+		return nil, err
+	}
+	return res.Data, nil
+}
+
+// extractHost returns the hostname from a URL string (strips scheme, port, path).
+func extractHost(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil && u.Hostname() != "" {
+		return u.Hostname()
+	}
+	return rawURL
 }
